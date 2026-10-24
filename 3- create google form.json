@@ -1,0 +1,311 @@
+{
+  "name": "3- create google form",
+  "nodes": [
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1Ffdzco_Bl0Q-eNLxBIokN2-x7qRitPnnbr0wUaA3YXI",
+          "mode": "list",
+          "cachedResultName": "Unit 1 AI_Questions",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ffdzco_Bl0Q-eNLxBIokN2-x7qRitPnnbr0wUaA3YXI/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Questions",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ffdzco_Bl0Q-eNLxBIokN2-x7qRitPnnbr0wUaA3YXI/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        160,
+        -48
+      ],
+      "id": "a034e97a-e6d2-425c-bb71-f1626a5a5ef8",
+      "name": "Get All Questions From Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZxE0xCrs8FJ7CAEI",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all();\n\nconst groupedExams = {};\n\nrows.forEach(row => {\n  const examName = row.json[\"exam name\"] || row.json[\"اسم الاختبار\"] || row.json[\"examName\"] || \"اختبار بدون عنوان\";\n  if (!groupedExams[examName]) {\n    groupedExams[examName] = [];\n  }\n  groupedExams[examName].push(row.json);\n});\n\nreturn Object.keys(groupedExams).map(examName => ({\n  json: {\n    examName: examName,\n    questions: groupedExams[examName]\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        -48
+      ],
+      "id": "fce8a627-6903-4d92-8a8c-b603278765ae",
+      "name": "Group By Exam Name"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://forms.googleapis.com/v1/forms",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"info\": {\n    \"title\": \"{{ $json.examName }}\"\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        608,
+        -48
+      ],
+      "id": "325c5ae5-e53e-49f7-a73d-849360141612",
+      "name": "Create Form",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "fNMAEdsbLmNAj1Om",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map((item, itemIndex) => {\n  const examGroup =$(\"Group By Exam Name\").all()[itemIndex];\n  const questions = (examGroup && examGroup.json && examGroup.json.questions) ? examGroup.json.questions : [];\n  const formId = item.json.formId;\n  const examName = examGroup.json.examName;\n\n  const quizSettingRequest = {\n    updateSettings: {\n      settings: {\n        quizSettings: {\n          isQuiz: true\n        }\n      },\n      updateMask: \"quizSettings.isQuiz\"\n    }\n  };\n\n  const updateInfoRequest = {\n    updateFormInfo: {\n      info: {\n        description: \"Exam Name: \" + examName\n      },\n      updateMask: \"description\"\n    }\n  };\n\n  const emailItemRequest = {\n    createItem: {\n      item: {\n        title: \"البريد الإلكتروني\",\n        questionItem: {\n          question: {\n            required: true,\n            textQuestion: {\n              paragraph: false\n            }\n          }\n        }\n      },\n      location: {\n        index: 0\n      }\n    }\n  };\n\n  const createItemRequests = questions.map((q, index) => {\n    const questionTitle = q[\"Question\"] || q[\"السؤال\"] || `سؤال ${index + 1}`;\n    \n    const rawOptions = [\n      q[\"Option A\"] || q[\"الخيار الأول\"],\n      q[\"Option B\"] || q[\"الخيار الثاني\"],\n      q[\"Option C\"] || q[\"الخيار الثالث\"],\n      q[\"Option D\"] || q[\"الخيار الرابع\"]\n    ].filter(opt => opt !== undefined && opt !== null && String(opt).trim() !== \"\");\n\n    const correctAnswer = String(q[\"Correct Answer\"] || q[\"الإجابة الصحيحة\"] || q[\"Answer\"] || \"\").trim();\n\n    const questionObj = {\n      required: true,\n      choiceQuestion: {\n        type: \"RADIO\",\n        options: rawOptions.map(opt => ({ value: String(opt) }))\n      }\n    };\n\n    if (correctAnswer) {\n      questionObj.grading = {\n        pointValue: 1,\n        correctAnswers: {\n          answers: [\n            { value: correctAnswer }\n          ]\n        }\n      };\n    }\n\n    return {\n      createItem: {\n        item: {\n          title: String(questionTitle),\n          questionItem: {\n            question: questionObj\n          }\n        },\n        location: {\n          index: index + 1\n        }\n      }\n    };\n  });\n\n  return {\n    json: {\n      formId: formId,\n      examName: examName,\n      payload: {\n        requests: [quizSettingRequest, updateInfoRequest, emailItemRequest, ...createItemRequests]\n      }\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        816,
+        -48
+      ],
+      "id": "f9913f9a-6427-4019-926a-16a974470af6",
+      "name": "Prepare Questions Payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://forms.googleapis.com/v1/forms/{{ $json.formId }}:batchUpdate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.payload }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1040,
+        -48
+      ],
+      "id": "2f3e3dd1-3a10-4a2b-bab9-3084ff740822",
+      "name": "Add Questions to Form",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "fNMAEdsbLmNAj1Om",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1g_Qks_6XJgpXt1uJ_NuJgiWXK4Cu06V8Wks3tN28orA",
+          "mode": "list",
+          "cachedResultName": "create n8n qus",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1g_Qks_6XJgpXt1uJ_NuJgiWXK4Cu06V8Wks3tN28orA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1862515104,
+          "mode": "list",
+          "cachedResultName": "form ID",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1g_Qks_6XJgpXt1uJ_NuJgiWXK4Cu06V8Wks3tN28orA/edit#gid=1862515104"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "exam name": "={{ $(\"Prepare Questions Payload\").item.json.examName }}",
+            "formId": "={{ $(\"Prepare Questions Payload\").item.json.formId }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "exam name",
+              "displayName": "exam name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string"
+            },
+            {
+              "id": "formId",
+              "displayName": "formId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1264,
+        -48
+      ],
+      "id": "4422acdf-908a-4a82-b25a-d27b8e5fff2b",
+      "name": "Save Form ID to Sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZxE0xCrs8FJ7CAEI",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "wSoHcwnUTlXcupxw",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/wSoHcwnUTlXcupxw"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        1488,
+        -48
+      ],
+      "id": "6d818699-2a48-4b57-b39f-d8eca365c7a9",
+      "name": "Call 'send exam v2'",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -64,
+        -48
+      ],
+      "id": "2102937e-9d0f-48af-a65d-d184912bc3b5",
+      "name": "When Executed by Another Workflow"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get All Questions From Sheet": {
+      "main": [
+        [
+          {
+            "node": "Group By Exam Name",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Group By Exam Name": {
+      "main": [
+        [
+          {
+            "node": "Create Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Form": {
+      "main": [
+        [
+          {
+            "node": "Prepare Questions Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Questions Payload": {
+      "main": [
+        [
+          {
+            "node": "Add Questions to Form",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Form ID to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Call 'send exam v2'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Questions to Form": {
+      "main": [
+        [
+          {
+            "node": "Save Form ID to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get All Questions From Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "f4302139-ee99-4a1e-8e87-118a4547a909",
+  "meta": {
+    "instanceId": "15e6cb17bd1a4f04d7d7d105e9e5e24d9acaf0b16eb5aa04cae35426d44ec522"
+  },
+  "nodeGroups": [],
+  "id": "93rSu22W6JkTiy23",
+  "tags": []
+}

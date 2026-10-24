@@ -1,0 +1,286 @@
+{
+  "name": "1-create doc",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "value": "={{ $json.id }}",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -624,
+        144
+      ],
+      "id": "181820b9-f31e-4742-a5d6-0196987cdb8c",
+      "name": "Download file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "kP3tFMr3JjXbfPc7",
+          "name": "class room drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -480,
+        144
+      ],
+      "id": "6190ceea-4577-48ac-9145-7d292ef49c04",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "===أنت خبير تعليمي ومتخصص في تحليل المناهج الدراسية.\nقم بتحليل النص التعليمي التالي واستخرج منه ما يلي بدقة وشاملة:\n\n1. lesson_number: رقم الدرس (أو رقم الوحدة/الدرس إن وجد، أو اكتب \"غير محدد\").\n2. lesson_name: عنوان أو اسم الدرس الأساسي.\n3. summary: ملخص شامل ومبسط للمحتوى.\n4. main_concepts: قائمة بالمفاهيم والمصطلحات الأساسية الواردة.\n5. learning_objectives: قائمة بالأهداف التعليمية المتوقعة من هذا الدرس.\n\nتنبيه هام جداً: يجب أن تكون المخرجات حصراً بصيغة JSON نقي فقط تبدأ بـ { وتنتهي بـ } دون أي مقدمات أو كلام توضيحي.\n\nالمحتوى التعليمي:\n{{ $json.text }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -320,
+        144
+      ],
+      "id": "93d7df27-83fb-4150-8a73-be5ad8c230fa",
+      "name": "Basic LLM Chain",
+      "retryOnFail": false,
+      "waitBetweenTries": 3000
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -320,
+        352
+      ],
+      "id": "5e698148-6586-4b36-8475-88759bfea2c0",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "HjQEmQccBiSnF3uB",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// استخراج النص القادم من الذكاء الاصطناعي\nconst rawText = $json.message?.content || $json.text || '';\n\ntry {\n  // البحث عن أول كائن JSON داخل النص\n  const jsonMatch = rawText.match(/\\{[\\s\\S]*\\}/);\n  \n  if (!jsonMatch) {\n    throw new Error(\"لم يتم العثور على صيغة JSON داخل استجابة النموذج.\");\n  }\n\n  // تحويل النص المستخرج إلى JSON\n  const parsed = JSON.parse(jsonMatch[0]);\n\n  const lessonNumber = parsed.lesson_number || 'الدرس';\n  const lessonName = parsed.lesson_name || 'بدون عنوان';\n  const finalFileName = lessonNumber + ' - ' + lessonName;\n\n  return {\n    json: {\n      fileName: finalFileName,\n      summary: parsed.summary || '',\n      main_concepts: Array.isArray(parsed.main_concepts) \n        ? parsed.main_concepts.join('، ') \n        : (parsed.main_concepts || ''),\n      learning_objectives: Array.isArray(parsed.learning_objectives) \n        ? parsed.learning_objectives.join('، ') \n        : (parsed.learning_objectives || '')\n    }\n  };\n} catch (error) {\n  return {\n    json: {\n      error: error.message,\n      rawOutput: rawText\n    }\n  };\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        144
+      ],
+      "id": "402a9f35-3a00-4e3b-a341-0cd513bba75b",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "operation": "createFromText",
+        "content": "=عنوان الدرس\n{{ $json.fileName }}\nملخص الدرس\n{{ $json.summary }}\nالمفاهيم الاساسية\n{{ $json.main_concepts }}\nالاهداف التعليمية \n{{ $json.learning_objectives }}",
+        "name": "={{ $json.fileName }}",
+        "driveId": {
+          "__rl": true,
+          "value": "https://drive.google.com/drive/folders/1NJI4IaSImzH2_tAJeCmJDnaRHvFCyL5d",
+          "mode": "url"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "root",
+          "cachedResultName": "/ (Root folder)"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        160,
+        144
+      ],
+      "id": "fa558d67-3f7c-4c6f-b69d-2bab259efbdf",
+      "name": "Create file from text",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "kP3tFMr3JjXbfPc7",
+          "name": "class room drive"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "pdf-filter",
+              "leftValue": "={{ $json.name }}",
+              "rightValue": ".pdf",
+              "operator": {
+                "type": "string",
+                "operation": "endsWith"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5b95623e-2b0d-41f8-9d39-76e6a56287df",
+      "name": "Filter Only PDF Files",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -816,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "value": "https://drive.google.com/drive/folders/1wlirslUsTY6RYb8KjCLTaQ_ZSA1jzaoD",
+          "mode": "url"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "id": "c8fc0efe-b05f-44ef-905a-7dde4d0d8aa7",
+      "name": "Google Drive Trigger1",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1008,
+        160
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "kP3tFMr3JjXbfPc7",
+          "name": "class room drive"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Create file from text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Drive Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Filter Only PDF Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Only PDF Files": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ae018d0d-633b-4b41-b57a-fed09e0b9ad6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "15e6cb17bd1a4f04d7d7d105e9e5e24d9acaf0b16eb5aa04cae35426d44ec522"
+  },
+  "nodeGroups": [],
+  "id": "0GupzziYu5OmL5NS",
+  "tags": []
+}

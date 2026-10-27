@@ -1,0 +1,259 @@
+{
+  "name": "6-send email degree",
+  "nodes": [
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1g_Qks_6XJgpXt1uJ_NuJgiWXK4Cu06V8Wks3tN28orA/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 999597715,
+          "mode": "list",
+          "cachedResultName": "Degree",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1g_Qks_6XJgpXt1uJ_NuJgiWXK4Cu06V8Wks3tN28orA/edit#gid=999597715"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "send"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -384,
+        48
+      ],
+      "id": "751bbeed-c75a-4c12-9073-7cdd7319484e",
+      "name": "Get Unsent Rows",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZxE0xCrs8FJ7CAEI",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Get Unsent Rows').item.json.email }}",
+        "subject": "={{ \"نتيجة \" + $('Get Unsent Rows').item.json[\"exam name\"] }}",
+        "message": "=مرحبا بك \n{{ $('Get Unsent Rows').item.json['exam name'] }} نحيطكم علما ان درجة اختبارك \nهي {{ $('Get Unsent Rows').item.json['total degree'] }}\nمع اطيب التمنيات بالنجاح والتوفيق ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -144,
+        48
+      ],
+      "id": "9af05839-35e2-46f6-a198-661a71eb1d63",
+      "name": "Send Email to Student1",
+      "webhookId": "4ae6a8b6-8e4e-43cb-9cfa-8798a2baa020",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "gRaaTT1EeICA7H5e",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1g_Qks_6XJgpXt1uJ_NuJgiWXK4Cu06V8Wks3tN28orA",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 999597715,
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $('Get Unsent Rows').item.json.row_number }}",
+            "send": "ok"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "send",
+              "displayName": "send",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        -48
+      ],
+      "id": "7bf7e57a-a665-4ded-a954-790c5bd816d4",
+      "name": "Mark as Success (ok)1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZxE0xCrs8FJ7CAEI",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1g_Qks_6XJgpXt1uJ_NuJgiWXK4Cu06V8Wks3tN28orA",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 999597715,
+          "mode": "list"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $('Get Unsent Rows').item.json.row_number }}",
+            "send": "error"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "send",
+              "displayName": "send",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        192
+      ],
+      "id": "16b7f5f1-c2d8-4e02-a6ad-fb5bd8e79e57",
+      "name": "Mark as Error (error)1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZxE0xCrs8FJ7CAEI",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -560,
+        48
+      ],
+      "id": "5761f704-fc83-4b76-877d-7b246f75aa8f",
+      "name": "When Executed by Another Workflow"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get Unsent Rows": {
+      "main": [
+        [
+          {
+            "node": "Send Email to Student1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email to Student1": {
+      "main": [
+        [
+          {
+            "node": "Mark as Success (ok)1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark as Error (error)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get Unsent Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ec4da963-407c-4f80-90ab-c5e27b6ae89b",
+  "meta": {
+    "instanceId": "15e6cb17bd1a4f04d7d7d105e9e5e24d9acaf0b16eb5aa04cae35426d44ec522"
+  },
+  "nodeGroups": [],
+  "id": "D7cynnpYkuNJ8yTK",
+  "tags": []
+}

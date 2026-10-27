@@ -1,0 +1,347 @@
+{
+  "name": "5-insert degree",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -5200,
+        848
+      ],
+      "id": "151e277d-020a-46eb-b76d-bf0ffcfb9749",
+      "name": "Schedule Trigger (Every 1 Hour)1"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1g_Qks_6XJgpXt1uJ_NuJgiWXK4Cu06V8Wks3tN28orA/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 999597715,
+          "mode": "list",
+          "cachedResultName": "Degree",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1g_Qks_6XJgpXt1uJ_NuJgiWXK4Cu06V8Wks3tN28orA/edit#gid=999597715"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -4976,
+        848
+      ],
+      "id": "1f0b3250-0a77-4a39-80c9-e46ae368eb75",
+      "name": "Read Existing Log1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZxE0xCrs8FJ7CAEI",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1g_Qks_6XJgpXt1uJ_NuJgiWXK4Cu06V8Wks3tN28orA",
+          "mode": "list",
+          "cachedResultName": "create n8n qus"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1862515104,
+          "mode": "list",
+          "cachedResultName": "form ID"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -4784,
+        848
+      ],
+      "id": "53fea327-60af-41fa-9f2c-1c923041dae0",
+      "name": "Get Active Form IDs1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZxE0xCrs8FJ7CAEI",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://forms.googleapis.com/v1/forms/' + $('Get Active Form IDs1').item.json.formId + '/responses' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -4416,
+        848
+      ],
+      "id": "9693189d-a1d1-4eea-82a7-71e5565dc0b8",
+      "name": "Get Dynamic Responses1",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "fNMAEdsbLmNAj1Om",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const existingLogs = $(\"Read Existing Log1\").all().map(item => item.json);\n\nconst normalize = value => (value ?? \"\").toString().trim().toLowerCase();\nconst normalizeTitle = value => normalize(value)\n  .normalize(\"NFKC\")\n  .replace(/[إأآ]/g, \"ا\")\n  .replace(/[\\u064B-\\u065F\\u0670]/g, \"\")\n  .replace(/\\s+/g, \" \");\n\nconst isEmailQuestionTitle = title => {\n  const t = normalizeTitle(title);\n  return t === \"البريد الالكتروني\" || t === \"البريد الإلكتروني\";\n};\n\nconst existingKeys = new Set(existingLogs.map(log => {\n  const exam = normalize(log[\"exam name\"] || log[\"اسم الاختبار\"]);\n  const email = normalize(log[\"email\"] || log[\"البريد الالكتروني\"]);\n  const degree = log[\"total degree\"] !== undefined && log[\"total degree\"] !== null\n    ? log[\"total degree\"].toString().trim()\n    : \"\";\n  return `${exam}_${email}_${degree}`;\n}));\n\nconst activeForms = $(\"Get Active Form IDs1\").all();\nconst httpResponses = $(\"Get Dynamic Responses1\").all();\nconst formMetadata = $(\"Get Form Metadata1\").all();\nconst finalItems = [];\n\nhttpResponses.forEach((httpItem, idx) => {\n  const examInfo = activeForms[idx]?.json || {};\n  const metadata = formMetadata[idx]?.json || {};\n  const examName = examInfo[\"exam name\"] || examInfo[\"اسم الاختبار\"] || \"اختبار بدون عنوان\";\n  const responsesList = httpItem.json?.responses || [];\n\n  const emailQuestionIds = new Set();\n  for (const item of (metadata.items || [])) {\n    if (!isEmailQuestionTitle(item.title)) continue;\n    const questionId = item.questionItem?.question?.questionId;\n    if (questionId) emailQuestionIds.add(questionId);\n    for (const q of (item.questionGroupItem?.questions || [])) {\n      if (q.questionId) emailQuestionIds.add(q.questionId);\n    }\n  }\n\n  responsesList.forEach(r => {\n    let totalScore = 0;\n    const answers = r.answers || {};\n    Object.values(answers).forEach(ans => {\n      if (ans.grade && typeof ans.grade.score === \"number\") totalScore += ans.grade.score;\n    });\n\n    let email = \"\";\n    for (const questionId of emailQuestionIds) {\n      const answer = answers[questionId];\n      const value = (answer?.textAnswers?.answers || [])\n        .map(a => (a.value || \"\").toString().trim())\n        .find(Boolean) || \"\";\n      if (value) {\n        email = value; // جلب الإجابة كما هي تماماً بدون فلترة أو فالديشن\n        break;\n      }\n    }\n\n    if (!email) return;\n\n    const uniqueKey = `${normalize(examName)}_${normalize(email)}_${totalScore}`;\n    if (!existingKeys.has(uniqueKey)) {\n      finalItems.push({ json: { \"exam name\": examName, \"email\": email, \"total degree\": totalScore, \"send\": \"\" } });\n      existingKeys.add(uniqueKey);\n    }\n  });\n});\n\nreturn finalItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4240,
+        848
+      ],
+      "id": "9383e412-56b5-4208-8f04-13cdbe2c8c0b",
+      "name": "Parse Responses & Scores1",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1g_Qks_6XJgpXt1uJ_NuJgiWXK4Cu06V8Wks3tN28orA/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 999597715,
+          "mode": "list",
+          "cachedResultName": "Degree",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1g_Qks_6XJgpXt1uJ_NuJgiWXK4Cu06V8Wks3tN28orA/edit#gid=999597715"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "exam name": "={{ $json['exam name'] }}",
+            "email": "={{ $json.email }}",
+            "total degree": "={{ $json['total degree'] }}",
+            "send": "={{ $json.send }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "exam name",
+              "displayName": "exam name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "email",
+              "displayName": "email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "total degree",
+              "displayName": "total degree",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "send",
+              "displayName": "send",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -4048,
+        848
+      ],
+      "id": "bea051b1-7b6e-4406-87ce-685359d88228",
+      "name": "add degree in sheet",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZxE0xCrs8FJ7CAEI",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://forms.googleapis.com/v1/forms/{{ $json.formId }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        -4576,
+        848
+      ],
+      "id": "6769ece3-069b-408c-ad9b-b9d8be644b5e",
+      "name": "Get Form Metadata1",
+      "credentials": {
+        "oAuth2Api": {
+          "id": "fNMAEdsbLmNAj1Om",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "D7cynnpYkuNJ8yTK",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/D7cynnpYkuNJ8yTK"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        -3856,
+        848
+      ],
+      "id": "a2c33604-9347-4e9f-be21-fc9a1816e45f",
+      "name": "Call '5-send email degree'"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger (Every 1 Hour)1": {
+      "main": [
+        [
+          {
+            "node": "Read Existing Log1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Existing Log1": {
+      "main": [
+        [
+          {
+            "node": "Get Active Form IDs1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Form IDs1": {
+      "main": [
+        [
+          {
+            "node": "Get Form Metadata1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Dynamic Responses1": {
+      "main": [
+        [
+          {
+            "node": "Parse Responses & Scores1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Responses & Scores1": {
+      "main": [
+        [
+          {
+            "node": "add degree in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "add degree in sheet": {
+      "main": [
+        [
+          {
+            "node": "Call '5-send email degree'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Form Metadata1": {
+      "main": [
+        [
+          {
+            "node": "Get Dynamic Responses1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ad2e728c-a817-4f7f-a48e-6c920f38e0c5",
+  "meta": {
+    "instanceId": "15e6cb17bd1a4f04d7d7d105e9e5e24d9acaf0b16eb5aa04cae35426d44ec522"
+  },
+  "nodeGroups": [],
+  "id": "nNttpiisWnI85v9Z",
+  "tags": []
+}
